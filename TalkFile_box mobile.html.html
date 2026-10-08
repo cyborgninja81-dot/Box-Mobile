@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>콜드체인 3D 시각화 포장재 & 드라이아이스 계산기</title>
+    <!-- Three.js 3D 라이브러리 및 컨트롤 로드 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 12px;
+            color: #2c3e50;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 16px;
+            border-radius: 14px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        h1 {
+            color: #0d47a1;
+            margin-top: 0;
+            font-size: 20px;
+            border-bottom: 3px solid #1976d2;
+            padding-bottom: 10px;
+            text-align: center;
+        }
+        .input-section {
+            background: #eef5fc;
+            padding: 14px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        .filter-group {
+            margin-bottom: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+        }
+        .filter-group label { font-weight: bold; font-size: 14px; }
+        .filter-group select { 
+            padding: 8px 12px; 
+            border-radius: 6px; 
+            border: 1px solid #b0bec5;
+            font-size: 14px;
+            flex: 1;
+            min-width: 150px;
+        }
+        
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .item-table, .result-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            min-width: 650px; /* 모바일에서 표 깨짐 방지 */
+        }
+        .item-table th, .item-table td, .result-table th, .result-table td {
+            border: 1px solid #e0e0e0;
+            padding: 8px 6px;
+            text-align: center;
+            font-size: 12px;
+        }
+        .item-table th { background-color: #e3f2fd; color: #0d47a1; }
+        .result-table th { background-color: #f5f5f5; }
+
+        .item-table input {
+            width: 100%;
+            padding: 6px 4px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 13px;
+        }
+        
+        /* 요약 카드 */
+        .summary-card {
+            background: #ffffff;
+            border: 1px solid #bbdefb;
+            border-left: 5px solid #1976d2;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+        }
+        @media (min-width: 600px) {
+            .summary-card { grid-template-columns: repeat(4, 1fr); }
+            body { padding: 20px; }
+            .container { padding: 24px; }
+            h1 { font-size: 24px; text-align: left; }
+        }
+        .summary-item { text-align: center; }
+        .summary-item div.title { font-size: 11px; color: #666; margin-bottom: 2px; }
+        .summary-item div.value { font-size: 15px; font-weight: bold; color: #0d47a1; }
+
+        .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .btn-add { background-color: #2e7d32; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; flex: 1; }
+        .btn-remove { background-color: #c62828; color: white; border: none; padding: 6px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+        .btn-calc { padding: 10px 16px; background-color: #1565c0; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; flex: 1; }
+        .btn-report { padding: 10px 16px; background-color: #00796b; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; flex: 1; }
+        .btn-view3d { background-color: #0288d1; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
+
+        .badge { padding: 3px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; }
+        .badge-success { background-color: #e8f5e9; color: #2e7d32; }
+        .badge-danger { background-color: #ffebee; color: #c62828; }
+
+        /* 3D 모달 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0; top: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.7);
+        }
+        .modal-content {
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 16px;
+            border-radius: 12px;
+            width: 92%;
+            max-width: 800px;
+            position: relative;
+        }
+        .close-btn {
+            position: absolute;
+            right: 15px; top: 10px;
+            font-size: 28px; font-weight: bold; cursor: pointer; color: #555;
+            padding: 5px;
+        }
+        #canvas3d {
+            width: 100%; height: 360px;
+            background-color: #1a1a1a;
+            border-radius: 8px;
+            margin-top: 10px;
+            touch-action: none; /* 모바일 터치 이벤트 오버라이드 */
+        }
+        .legend {
+            display: flex; gap: 10px; margin-top: 10px; font-size: 11px; justify-content: center; flex-wrap: wrap;
+        }
+        .legend-item { display: flex; align-items: center; gap: 4px; }
+        .color-box { width: 12px; height: 12px; border-radius: 2px; }
+
+        /* 모바일 인쇄 스타일 */
+        @media print {
+            body { background: white; padding: 0; }
+            .container { box-shadow: none; padding: 0; width: 100%; max-width: 100%; }
+            .input-section, .btn-group, .btn-remove, .btn-view3d, .close-btn, .modal, #tempSelect, label[for="tempSelect"] { display: none !important; }
+            .result-table th:nth-child(1), .result-table td:nth-child(1),
+            .result-table th:nth-child(9), .result-table td:nth-child(9) { display: none !important; }
+            .table-responsive { overflow: visible !important; border: none !important; }
+            .item-table, .result-table { min-width: 100% !important; }
+            h1 { border-bottom: 2px solid #000; color: #000; font-size: 18px; }
+            .result-table th { background-color: #eee !important; color: #000; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🧊 콜드체인 포장재 & 드라이아이스 3D 계산기</h1>
+    
+    <div class="input-section">
+        <div class="filter-group">
+            <label for="tempSelect">온도대 선택:</label>
+            <select id="tempSelect" onchange="calculateCapacity()">
+                <option value="ALL">전체 보기</option>
+                <option value="+2~+8C">+2~+8℃</option>
+                <option value="+15~+25C">+15~+25℃</option>
+                <option value="-25~-15C">-25~-15℃</option>
+                <option value="-60C(Dry ice)" selected>-60℃ (Dry Ice)</option>
+            </select>
+        </div>
+
+        <h3 style="margin: 10px 0 8px 0; font-size: 15px;">1. 적재 물품 목록 설정</h3>
+        <div class="table-responsive">
+            <table class="item-table">
+                <thead>
+                    <tr>
+                        <th>물품명</th>
+                        <th>가로(mm)</th>
+                        <th>세로(mm)</th>
+                        <th>높이(mm)</th>
+                        <th>무게(kg)</th>
+                        <th>수량</th>
+                        <th>삭제</th>
+                    </tr>
+                </thead>
+                <tbody id="itemInputBody"></tbody>
+            </table>
+        </div>
+        
+        <div class="btn-group">
+            <button class="btn-add" onclick="addItemRow()">+ 물품 추가</button>
+            <button class="btn-calc" onclick="calculateCapacity()">계산하기</button>
+            <button class="btn-report" onclick="printReport()">📄 리포트 출력</button>
+        </div>
+    </div>
+
+    <!-- 전체 요약 카운터 -->
+    <div class="summary-card" id="summaryCard">
+        <div class="summary-item">
+            <div class="title">총 물품 구성</div>
+            <div class="value" id="sumTypeCount">0 종</div>
+        </div>
+        <div class="summary-item">
+            <div class="title">총 물품 개수</div>
+            <div class="value" id="sumTotalQty">0 개</div>
+        </div>
+        <div class="summary-item">
+            <div class="title">총 순 부피</div>
+            <div class="value" id="sumTotalVol">0 L</div>
+        </div>
+        <div class="summary-item">
+            <div class="title">총 무게</div>
+            <div class="value" id="sumTotalWeight">0.0 kg</div>
+        </div>
+    </div>
+
+    <!-- 결과 리스트 -->
+    <h3 style="margin: 10px 0 8px 0; font-size: 15px;">2. 포장재별 수용 능력 분석</h3>
+    <div class="table-responsive">
+        <table class="result-table">
+            <thead>
+                <tr>
+                    <th><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" checked></th>
+                    <th>온도대</th>
+                    <th>제조사 / 모델명</th>
+                    <th>내부 원규격(mm)</th>
+                    <th>목표 DI</th>
+                    <th>최대 수용 DI</th>
+                    <th>적재 여부</th>
+                    <th>가능 세트</th>
+                    <th>3D 보기</th>
+                </tr>
+            </thead>
+            <tbody id="resultBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 3D 팝업 모달 -->
+<div id="modal3d" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <h4 id="modalTitle" style="margin: 0 0 10px 0; color: #0d47a1; font-size: 14px;">3D 적재 시뮬레이션</h4>
+        <div id="canvas3d"></div>
+        <div class="legend">
+            <div class="legend-item"><div class="color-box" style="background:#4caf50;"></div>적재 물품</div>
+            <div class="legend-item"><div class="color-box" style="background:#00bcd4;"></div>드라이아이스(Dry Ice)</div>
+            <div class="legend-item"><div class="color-box" style="background:#ffffff; border:1px solid #ccc;"></div>포장재 내경</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 최신 포장재 32종 DB
+    const boxDatabase = [
+        { id: "box_1", temp: "+2~+8C", brand: "Envirotainer", model: "Onepak 8", w: 200, d: 200, h: 200, dryIce: null },
+        { id: "box_2", temp: "+2~+8C", brand: "Envirotainer", model: "Onepak 23", w: 320, d: 320, h: 220, dryIce: null },
+        { id: "box_3", temp: "+2~+8C", brand: "Envirotainer", model: "Onepak 43", w: 420, d: 320, h: 320, dryIce: null },
+        { id: "box_4", temp: "+2~+8C", brand: "Envirotainer", model: "Onepak 74", w: 420, d: 420, h: 420, dryIce: null },
+        { id: "box_5", temp: "+2~+8C", brand: "Envirotainer", model: "Onepak 300", w: 1005, d: 625, h: 475, dryIce: null },
+        { id: "box_6", temp: "+2~+8C", brand: "Envirotainer", model: "Onepal", w: 1005, d: 625, h: 475, dryIce: null },
+        { id: "box_7", temp: "+2~+8C", brand: "Thermolab Korea", model: "Smart TCP 28L", w: 305, d: 305, h: 305, dryIce: null },
+        { id: "box_8", temp: "+2~+8C", brand: "Thermolab Korea", model: "Smart TCP 56L", w: 383, d: 383, h: 383, dryIce: null },
+
+        { id: "box_9", temp: "+15~+25C", brand: "Envirotainer", model: "Onepak 8", w: 200, d: 200, h: 200, dryIce: null },
+        { id: "box_10", temp: "+15~+25C", brand: "Envirotainer", model: "Onepak 23", w: 320, d: 320, h: 220, dryIce: null },
+        { id: "box_11", temp: "+15~+25C", brand: "Envirotainer", model: "Onepak 43", w: 420, d: 320, h: 320, dryIce: null },
+        { id: "box_12", temp: "+15~+25C", brand: "Envirotainer", model: "Onepak 74", w: 420, d: 420, h: 420, dryIce: null },
+        { id: "box_13", temp: "+15~+25C", brand: "Envirotainer", model: "Onepak 300", w: 1005, d: 625, h: 475, dryIce: null },
+        { id: "box_14", temp: "+15~+25C", brand: "Envirotainer", model: "Onepal", w: 1005, d: 625, h: 475, dryIce: null },
+        { id: "box_15", temp: "+15~+25C", brand: "Thermolab Korea", model: "Smart TCP 28L", w: 305, d: 305, h: 305, dryIce: null },
+        { id: "box_16", temp: "+15~+25C", brand: "Thermolab Korea", model: "Smart TCP 56L", w: 383, d: 383, h: 383, dryIce: null },
+
+        { id: "box_17", temp: "-25~-15C", brand: "Envirotainer", model: "Onepak 8", w: 200, d: 200, h: 200, dryIce: null },
+        { id: "box_18", temp: "-25~-15C", brand: "Envirotainer", model: "Onepak 23", w: 320, d: 320, h: 220, dryIce: null },
+        { id: "box_19", temp: "-25~-15C", brand: "Envirotainer", model: "Onepak 43", w: 420, d: 320, h: 320, dryIce: null },
+        { id: "box_20", temp: "-25~-15C", brand: "Envirotainer", model: "Onepak 74", w: 420, d: 420, h: 420, dryIce: null },
+        { id: "box_21", temp: "-25~-15C", brand: "Envirotainer", model: "Onepak 300", w: 1005, d: 625, h: 475, dryIce: null },
+        { id: "box_22", temp: "-25~-15C", brand: "Envirotainer", model: "Onepal", w: 1005, d: 625, h: 475, dryIce: null },
+        { id: "box_23", temp: "-25~-15C", brand: "Thermolab Korea", model: "Smart TCP 28L", w: 305, d: 305, h: 305, dryIce: null },
+        { id: "box_24", temp: "-25~-15C", brand: "Thermolab Korea", model: "Smart TCP 56L", w: 383, d: 383, h: 383, dryIce: null },
+
+        { id: "box_25", temp: "-60C(Dry ice)", brand: "Intelsius", model: "Biotherm 15", w: 258, d: 258, h: 258, dryIce: 11.5 },
+        { id: "box_26", temp: "-60C(Dry ice)", brand: "Intelsius", model: "Biotherm 30", w: 320, d: 320, h: 320, dryIce: 24.9 },
+        { id: "box_27", temp: "-60C(Dry ice)", brand: "Intelsius", model: "Biotherm 45", w: 400, d: 270, h: 300, dryIce: 35.9 },
+        { id: "box_28", temp: "-60C(Dry ice)", brand: "Intelsius", model: "Biotherm 80", w: 444, d: 388, h: 485, dryIce: 33.3 },
+        { id: "box_29", temp: "-60C(Dry ice)", brand: "Intelsius", model: "Pharmatherm 230 DI", w: 767, d: 597, h: 360, dryIce: 118.7 },
+        { id: "box_30", temp: "-60C(Dry ice)", brand: "Intelsius", model: "Pharmatherm 375 DI", w: 767, d: 597, h: 665, dryIce: 173 },
+        { id: "box_31", temp: "-60C(Dry ice)", brand: "Nera", model: "NERA D15", w: 280, d: 220, h: 250, dryIce: 8.5 },
+        { id: "box_32", temp: "-60C(Dry ice)", brand: "Nera", model: "NERA D30", w: 315, d: 300, h: 315, dryIce: 18.0 }
+    ];
+
+    let currentItems = [];
+
+    function addItemRow(name = '', w = 100, d = 80, h = 50, weight = 0.4, qty = 4) {
+        const tbody = document.getElementById('itemInputBody');
+        const row = document.createElement('tr');
+        const idx = tbody.children.length + 1;
+
+        // inputmode="decimal" 추가하여 모바일 키패드 자동 팝업
+        row.innerHTML = `
+            <td><input type="text" value="${name || '물품 ' + idx}" class="i-name"></td>
+            <td><input type="number" inputmode="decimal" value="${w}" class="i-w" min="1" onchange="calculateCapacity()"></td>
+            <td><input type="number" inputmode="decimal" value="${d}" class="i-d" min="1" onchange="calculateCapacity()"></td>
+            <td><input type="number" inputmode="decimal" value="${h}" class="i-h" min="1" onchange="calculateCapacity()"></td>
+            <td><input type="number" inputmode="decimal" value="${weight}" step="0.1" class="i-weight" min="0" onchange="calculateCapacity()"></td>
+            <td><input type="number" inputmode="numeric" value="${qty}" class="i-qty" min="1" onchange="calculateCapacity()"></td>
+            <td><button class="btn-remove" onclick="removeRow(this)">삭제</button></td>
+        `;
+        tbody.appendChild(row);
+        calculateCapacity();
+    }
+
+    function removeRow(btn) {
+        const tbody = document.getElementById('itemInputBody');
+        if (tbody.children.length > 1) {
+            btn.closest('tr').remove();
+            calculateCapacity();
+        } else {
+            alert("최소 1개 이상의 물품이 필요합니다.");
+        }
+    }
+
+    function calculateCapacity() {
+        const tempFilter = document.getElementById('tempSelect').value;
+        const rows = document.querySelectorAll('#itemInputBody tr');
+        
+        currentItems = [];
+        let totalQty = 0;
+        let totalVolMM3 = 0;
+        let totalWeight = 0;
+
+        for (let row of rows) {
+            const name = row.querySelector('.i-name').value;
+            const w = parseFloat(row.querySelector('.i-w').value) || 0;
+            const d = parseFloat(row.querySelector('.i-d').value) || 0;
+            const h = parseFloat(row.querySelector('.i-h').value) || 0;
+            const weight = parseFloat(row.querySelector('.i-weight').value) || 0;
+            const qty = parseInt(row.querySelector('.i-qty').value) || 0;
+
+            if (w > 0 && d > 0 && h > 0 && qty > 0) {
+                currentItems.push({ name, w, d, h, weight, qty });
+                totalQty += qty;
+                totalVolMM3 += (w * d * h) * qty;
+                totalWeight += weight * qty;
+            }
+        }
+
+        const totalVolL = (totalVolMM3 / 1000000).toFixed(2);
+
+        document.getElementById('sumTypeCount').innerText = `${currentItems.length} 종`;
+        document.getElementById('sumTotalQty').innerText = `${totalQty} 개`;
+        document.getElementById('sumTotalVol').innerText = `${totalVolL} L`;
+        document.getElementById('sumTotalWeight').innerText = `${totalWeight.toFixed(2)} kg`;
+
+        const tbody = document.getElementById('resultBody');
+        tbody.innerHTML = '';
+
+        const filteredBoxes = boxDatabase.filter(box => tempFilter === 'ALL' || box.temp === tempFilter);
+
+        filteredBoxes.forEach((box) => {
+            const packedList = packItemsUpright(box, currentItems);
+            let totalRequestedQty = 0;
+            currentItems.forEach(i => totalRequestedQty += i.qty);
+
+            const isFitInputOnly = (packedList.length === totalRequestedQty && totalRequestedQty > 0);
+
+            let maxPackedY = 0;
+            packedList.forEach(item => {
+                maxPackedY = Math.max(maxPackedY, item.y + item.h);
+            });
+            const remainingH = Math.max(0, box.h - maxPackedY);
+            const remainingVolMM3 = box.w * box.d * remainingH;
+            const remainingVolL = remainingVolMM3 / 1000000;
+            
+            let maxAddableDryIceKg = parseFloat((remainingVolL * 1.56).toFixed(1));
+
+            // -60도 드라이아이스 검증
+            let isDryIceSufficient = true;
+            if (box.temp.includes('Dry ice') && box.dryIce !== null) {
+                if (maxAddableDryIceKg < box.dryIce) {
+                    isDryIceSufficient = false;
+                }
+            }
+
+            const finalFit = isFitInputOnly && isDryIceSufficient;
+
+            let fitBadge = finalFit 
+                ? `<span class="badge badge-success">가능</span>` 
+                : `<span class="badge badge-danger">불가</span>`;
+
+            if (!isDryIceSufficient && isFitInputOnly) {
+                fitBadge += `<br><small style="color:#c62828; font-size:9px;">(DI부족)</small>`;
+            }
+
+            let setsPossible = 0;
+            if (finalFit && totalVolMM3 > 0) {
+                setsPossible = Math.floor((box.w * box.d * box.h * 0.8) / totalVolMM3);
+            }
+
+            let setsBadge = setsPossible > 0 
+                ? `<strong>${setsPossible} 세트</strong>` 
+                : `<span style="color:#999;">-</span>`;
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="checkbox" class="box-select" value="${box.id}" checked></td>
+                <td>${box.temp}</td>
+                <td><strong>${box.brand}</strong><br>${box.model}</td>
+                <td>${box.w}x${box.d}x${box.h}</td>
+                <td>${box.dryIce ? box.dryIce + 'kg' : '-'}</td>
+                <td><strong>${maxAddableDryIceKg}kg</strong><br><small>(${remainingVolL.toFixed(1)}L)</small></td>
+                <td>${fitBadge}</td>
+                <td>${setsBadge}</td>
+                <td><button class="btn-view3d" onclick="open3DModal('${box.id}')">👁️ 3D</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function toggleSelectAll(master) {
+        const checkboxes = document.querySelectorAll('.box-select');
+        checkboxes.forEach(cb => cb.checked = master.checked);
+    }
+
+    function printReport() {
+        const selectedBoxes = document.querySelectorAll('.box-select:checked');
+        if (selectedBoxes.length === 0) {
+            alert('출력할 포장재를 선택해주세요.');
+            return;
+        }
+
+        const allRows = document.querySelectorAll('#resultBody tr');
+        allRows.forEach(row => {
+            const cb = row.querySelector('.box-select');
+            if (cb && !cb.checked) {
+                row.style.display = 'none';
+            } else {
+                row.style.display = '';
+            }
+        });
+
+        window.print();
+
+        allRows.forEach(row => row.style.display = '');
+    }
+
+    function packItemsUpright(box, rawItems) {
+        let itemsList = [];
+        rawItems.forEach((item, typeIdx) => {
+            for (let i = 0; i < item.qty; i++) {
+                itemsList.push({ ...item, typeIdx });
+            }
+        });
+
+        let packedItems = [];
+        let currX = 0;
+        let currZ = 0;
+        let currY = 0;
+
+        let maxRowDepth = 0;   
+        let maxLayerHeight = 0;
+
+        for (let item of itemsList) {
+            let w = item.w;
+            let d = item.d;
+            let h = item.h;
+
+            if (currX + w > box.w && currX + d <= box.w) {
+                [w, d] = [d, w];
+            }
+
+            if (currX + w <= box.w && currZ + d <= box.d && currY + h <= box.h) {
+                packedItems.push({ ...item, w, d, h, x: currX, y: currY, z: currZ });
+                currX += w;
+                maxRowDepth = Math.max(maxRowDepth, d);
+                maxLayerHeight = Math.max(maxLayerHeight, h);
+            }
+            else if (currZ + maxRowDepth + d <= box.d && currY + h <= box.h) {
+                currX = 0;
+                currZ += maxRowDepth;
+                maxRowDepth = d;
+
+                packedItems.push({ ...item, w, d, h, x: currX, y: currY, z: currZ });
+                currX += w;
+                maxLayerHeight = Math.max(maxLayerHeight, h);
+            }
+            else if (currY + maxLayerHeight + h <= box.h) {
+                currX = 0;
+                currZ = 0;
+                currY += maxLayerHeight;
+                maxRowDepth = d;
+                maxLayerHeight = h;
+
+                packedItems.push({ ...item, w, d, h, x: currX, y: currY, z: currZ });
+                currX += w;
+            }
+        }
+
+        return packedItems;
+    }
+
+    let scene, camera, renderer, controls;
+
+    function open3DModal(boxId) {
+        const box = boxDatabase.find(b => b.id === boxId);
+        if (!box) return;
+
+        document.getElementById('modal3d').style.display = 'block';
+        document.getElementById('modalTitle').innerText = `${box.brand} ${box.model} (${box.w}x${box.d}x${box.h}mm)`;
+
+        const container = document.getElementById('canvas3d');
+        container.innerHTML = '';
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+
+        camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 10000);
+        camera.position.set(box.w * 1.8, box.h * 1.8, box.d * 2.2);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(container.clientWidth, container.clientHeight);
+        container.appendChild(renderer.domElement);
+
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; // 모바일 터치 부드럽게
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        dirLight.position.set(200, 400, 200);
+        scene.add(dirLight);
+
+        const boxGeo = new THREE.BoxGeometry(box.w, box.h, box.d);
+        const wireframe = new THREE.WireframeGeometry(boxGeo);
+        const line = new THREE.LineSegments(wireframe, new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 }));
+        scene.add(line);
+
+        const packedList = packItemsUpright(box, currentItems);
+
+        const offsetX = -box.w / 2;
+        const offsetY = -box.h / 2;
+        const offsetZ = -box.d / 2;
+
+        const colors = [0x4caf50, 0xff9800, 0xe91e63, 0x9c27b0, 0x3f51b5];
+        let maxPackedY = 0;
+
+        packedList.forEach((item) => {
+            const itemColor = colors[item.typeIdx % colors.length];
+            const itemGeo = new THREE.BoxGeometry(item.w, item.h, item.d);
+            const itemMat = new THREE.MeshPhongMaterial({ color: itemColor, opacity: 0.85, transparent: true });
+            const itemMesh = new THREE.Mesh(itemGeo, itemMat);
+
+            itemMesh.position.set(
+                offsetX + item.x + item.w / 2,
+                offsetY + item.y + item.h / 2,
+                offsetZ + item.z + item.d / 2
+            );
+
+            const edges = new THREE.EdgesGeometry(itemGeo);
+            const lineSegments = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0xffffff }));
+            itemMesh.add(lineSegments);
+
+            scene.add(itemMesh);
+
+            maxPackedY = Math.max(maxPackedY, item.y + item.h);
+        });
+
+        const remainingH = box.h - maxPackedY;
+
+        if (remainingH > 0 && box.temp.includes('Dry ice')) {
+            const diGeo = new THREE.BoxGeometry(box.w, remainingH, box.d);
+            const diMat = new THREE.MeshPhongMaterial({ color: 0x00bcd4, opacity: 0.4, transparent: true });
+            const diMesh = new THREE.Mesh(diGeo, diMat);
+
+            diMesh.position.set(
+                0,
+                offsetY + maxPackedY + remainingH / 2,
+                0
+            );
+
+            const diEdges = new THREE.EdgesGeometry(diGeo);
+            const diLine = new THREE.LineSegments(diEdges, new THREE.LineBasicMaterial({ color: 0x00e5ff }));
+            diMesh.add(diLine);
+
+            scene.add(diMesh);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        animate();
+    }
+
+    function closeModal() {
+        document.getElementById('modal3d').style.display = 'none';
+    }
+
+    window.onload = function() {
+        addItemRow('바이알 팩 A', 100, 80, 50, 0.4, 4);
+        addItemRow('시린지 박스 B', 120, 100, 60, 0.6, 2);
+    };
+</script>
+
+</body>
+</html>
